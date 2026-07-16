@@ -13,3 +13,10 @@ export interface Edge {
   source: string; // 記錄起點 Node 的 ID
   target: string; // 記錄終點 Node 的 ID
 }
+
+export type EditorMode = 'SELECT' | 'ADD_EDGE';
+
+export interface Point {
+  x: number;
+  y: number;
+}

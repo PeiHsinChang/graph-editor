@@ -1,7 +1,7 @@
 // src/App.tsx
 import { useEffect, useState } from 'react';
 import SvgCanvas from './components/SvgCanvas';
-import { Node, Edge } from './types/graph';
+import { Node, Edge, EditorMode, Point } from './types/graph';
 
 export default function App() {
   // 集中管理拓撲圖的核心狀態
@@ -9,6 +9,10 @@ export default function App() {
   const [edges, setEdges] = useState<Edge[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [nextNodeNumber, setNextNodeNumber] = useState(1);
+  const [nextEdgeNumber, setNextEdgeNumber] = useState(1);
+  const [editorMode, setEditorMode] = useState<EditorMode>('SELECT');
+  const [pendingEdgeSourceId, setPendingEdgeSourceId] = useState<string | null>(null);
+  const [previewPoint, setPreviewPoint] = useState<Point | null>(null);
 
   // 新增節點的業務邏輯
   const handleAddNode = (x: number, y: number) => {
@@ -28,6 +32,54 @@ export default function App() {
     );
   };
 
+  const resetEdgeDraft = () => {
+    setPendingEdgeSourceId(null);
+    setPreviewPoint(null);
+  };
+
+  const handleModeChange = (mode: EditorMode) => {
+    setEditorMode(mode);
+    resetEdgeDraft();
+  };
+
+  const handleStartEdge = (sourceNodeId: string) => {
+    setSelectedNodeId(sourceNodeId);
+    setPendingEdgeSourceId(sourceNodeId);
+    setPreviewPoint(null);
+  };
+
+  const handlePreviewEdge = (point: Point | null) => {
+    if (editorMode !== 'ADD_EDGE' || !pendingEdgeSourceId) return;
+    setPreviewPoint(point);
+  };
+
+  const handleCompleteEdge = (targetNodeId: string) => {
+    if (!pendingEdgeSourceId || pendingEdgeSourceId === targetNodeId) {
+      resetEdgeDraft();
+      return;
+    }
+
+    const hasDuplicate = edges.some(
+      (edge) =>
+        edge.source === pendingEdgeSourceId && edge.target === targetNodeId
+    );
+
+    if (!hasDuplicate) {
+      setEdges((prev) => [
+        ...prev,
+        {
+          id: `edge_${nextEdgeNumber}`,
+          source: pendingEdgeSourceId,
+          target: targetNodeId,
+        },
+      ]);
+      setNextEdgeNumber((prev) => prev + 1);
+    }
+
+    setSelectedNodeId(targetNodeId);
+    resetEdgeDraft();
+  };
+
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!selectedNodeId) return;
@@ -40,12 +92,15 @@ export default function App() {
           (edge) => edge.source !== selectedNodeId && edge.target !== selectedNodeId
         )
       );
+      if (pendingEdgeSourceId === selectedNodeId) {
+        resetEdgeDraft();
+      }
       setSelectedNodeId(null);
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedNodeId]);
+  }, [pendingEdgeSourceId, selectedNodeId]);
 
   return (
     <div className="min-h-screen bg-slate-50 p-8 text-slate-800">
@@ -55,19 +110,48 @@ export default function App() {
         <div className="flex justify-between items-end">
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight">Interactive Graph Editor</h1>
-            <p className="text-slate-500 mt-1">點擊空白處新增節點，點擊節點可選取。</p>
+            <p className="text-slate-500 mt-1">
+              `SELECT` 模式可拖曳節點，`ADD_EDGE` 模式可建立節點連線。
+            </p>
           </div>
-          <button 
-            onClick={() => {
-              setNodes([]);
-              setEdges([]);
-              setSelectedNodeId(null);
-              setNextNodeNumber(1);
-            }}
-            className="px-4 py-2 bg-rose-500 text-white rounded-lg hover:bg-rose-600 transition font-medium"
-          >
-            清空畫布
-          </button>
+          <div className="flex items-center gap-3">
+            <div className="flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
+              <button
+                onClick={() => handleModeChange('SELECT')}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
+                  editorMode === 'SELECT'
+                    ? 'bg-slate-800 text-white'
+                    : 'text-slate-500 hover:bg-slate-100'
+                }`}
+              >
+                SELECT
+              </button>
+              <button
+                onClick={() => handleModeChange('ADD_EDGE')}
+                className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
+                  editorMode === 'ADD_EDGE'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-slate-500 hover:bg-slate-100'
+                }`}
+              >
+                ADD_EDGE
+              </button>
+            </div>
+
+            <button 
+              onClick={() => {
+                setNodes([]);
+                setEdges([]);
+                setSelectedNodeId(null);
+                setNextNodeNumber(1);
+                setNextEdgeNumber(1);
+                resetEdgeDraft();
+              }}
+              className="px-4 py-2 bg-rose-500 text-white rounded-lg hover:bg-rose-600 transition font-medium"
+            >
+              清空畫布
+            </button>
+          </div>
         </div>
 
         {/* 畫布與狀態檢視區 */}
@@ -76,10 +160,17 @@ export default function App() {
             <SvgCanvas 
               nodes={nodes} 
               edges={edges} 
+              editorMode={editorMode}
               selectedNodeId={selectedNodeId}
+              pendingEdgeSourceId={pendingEdgeSourceId}
+              previewPoint={previewPoint}
               onAddNode={handleAddNode}
               onMoveNode={handleMoveNode}
+              onPreviewEdge={handlePreviewEdge}
               onSelectNode={setSelectedNodeId}
+              onStartEdge={handleStartEdge}
+              onCompleteEdge={handleCompleteEdge}
+              onCancelEdgeDraft={resetEdgeDraft}
             />
           </div>
           
@@ -92,9 +183,25 @@ export default function App() {
                 <p className="text-2xl font-bold">{nodes.length}</p>
               </div>
               <div>
+                <p className="text-sm text-slate-400 font-medium">總連線數</p>
+                <p className="text-2xl font-bold">{edges.length}</p>
+              </div>
+              <div>
+                <p className="text-sm text-slate-400 font-medium">目前模式</p>
+                <p className="text-sm font-mono bg-slate-100 p-2 rounded mt-1">
+                  {editorMode}
+                </p>
+              </div>
+              <div>
                 <p className="text-sm text-slate-400 font-medium">選取的節點 ID</p>
                 <p className="text-sm font-mono bg-slate-100 p-2 rounded break-all mt-1">
                   {selectedNodeId || '無'}
+                </p>
+              </div>
+              <div>
+                <p className="text-sm text-slate-400 font-medium">連線起點</p>
+                <p className="text-sm font-mono bg-slate-100 p-2 rounded break-all mt-1">
+                  {pendingEdgeSourceId || '無'}
                 </p>
               </div>
               <div>

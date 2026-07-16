@@ -1,23 +1,37 @@
 // src/components/SvgCanvas.tsx
 import React, { useRef } from 'react';
-import { Node, Edge } from '../types/graph';
+import { Node, Edge, EditorMode, Point } from '../types/graph';
 
 interface SvgCanvasProps {
   nodes: Node[];
   edges: Edge[];
+  editorMode: EditorMode;
   selectedNodeId: string | null;
+  pendingEdgeSourceId: string | null;
+  previewPoint: Point | null;
   onAddNode: (x: number, y: number) => void;
   onMoveNode: (nodeId: string, x: number, y: number) => void;
+  onPreviewEdge: (point: Point | null) => void;
   onSelectNode: (id: string | null) => void;
+  onStartEdge: (sourceNodeId: string) => void;
+  onCompleteEdge: (targetNodeId: string) => void;
+  onCancelEdgeDraft: () => void;
 }
 
 export default function SvgCanvas({
   nodes,
   edges,
+  editorMode,
   selectedNodeId,
+  pendingEdgeSourceId,
+  previewPoint,
   onAddNode,
   onMoveNode,
+  onPreviewEdge,
   onSelectNode,
+  onStartEdge,
+  onCompleteEdge,
+  onCancelEdgeDraft,
 }: SvgCanvasProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   const draggingNodeIdRef = useRef<string | null>(null);
@@ -34,8 +48,19 @@ export default function SvgCanvas({
     };
   };
 
+  const getNodeCenter = (nodeId: string) => nodes.find((node) => node.id === nodeId) ?? null;
+
   // 【目標二：畫布座標轉換】
   const handleCanvasClick = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (editorMode === 'ADD_EDGE') {
+      onCancelEdgeDraft();
+      if (e.target === svgRef.current) {
+        onSelectNode(null);
+      }
+      hasDraggedRef.current = false;
+      return;
+    }
+
     if (e.target !== svgRef.current || hasDraggedRef.current) {
       hasDraggedRef.current = false;
       return;
@@ -69,11 +94,36 @@ export default function SvgCanvas({
     onSelectNode(node.id);
   };
 
+  const handleNodeClick = (
+    e: React.MouseEvent<SVGGElement>,
+    node: Node
+  ) => {
+    e.stopPropagation();
+
+    if (editorMode !== 'ADD_EDGE') {
+      return;
+    }
+
+    if (!pendingEdgeSourceId) {
+      onStartEdge(node.id);
+      return;
+    }
+
+    onCompleteEdge(node.id);
+  };
+
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const point = getCanvasPoint(e);
+
+    if (editorMode === 'ADD_EDGE') {
+      if (pendingEdgeSourceId) {
+        onPreviewEdge(point);
+      }
+      return;
+    }
+
     const draggingNodeId = draggingNodeIdRef.current;
     if (!draggingNodeId) return;
-
-    const point = getCanvasPoint(e);
     if (!point) return;
 
     hasDraggedRef.current = true;
@@ -88,34 +138,93 @@ export default function SvgCanvas({
     draggingNodeIdRef.current = null;
   };
 
+  const pendingEdgeSource = pendingEdgeSourceId
+    ? getNodeCenter(pendingEdgeSourceId)
+    : null;
+
   return (
     <svg
       ref={svgRef}
-      className="w-full h-[600px] bg-white border-2 border-slate-200 rounded-xl shadow-sm cursor-crosshair"
+      className={`w-full h-[600px] bg-white border-2 border-slate-200 rounded-xl shadow-sm ${
+        editorMode === 'ADD_EDGE' ? 'cursor-alias' : 'cursor-crosshair'
+      }`}
       onClick={handleCanvasClick}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
-      {/* 先畫 Edge (留空，準備 Day 3 實作) */}
-      <g className="edges" data-edge-count={edges.length}></g>
+      <defs>
+        <marker
+          id="edge-arrow"
+          viewBox="0 0 10 10"
+          refX="9"
+          refY="5"
+          markerWidth="6"
+          markerHeight="6"
+          orient="auto-start-reverse"
+        >
+          <path d="M 0 0 L 10 5 L 0 10 z" className="fill-slate-400" />
+        </marker>
+      </defs>
+
+      <g className="edges" data-edge-count={edges.length}>
+        {edges.map((edge) => {
+          const sourceNode = getNodeCenter(edge.source);
+          const targetNode = getNodeCenter(edge.target);
+          if (!sourceNode || !targetNode) return null;
+
+          return (
+            <line
+              key={edge.id}
+              x1={sourceNode.x}
+              y1={sourceNode.y}
+              x2={targetNode.x}
+              y2={targetNode.y}
+              className="stroke-slate-300 stroke-[3px]"
+              markerEnd="url(#edge-arrow)"
+            />
+          );
+        })}
+
+        {pendingEdgeSource && previewPoint ? (
+          <line
+            x1={pendingEdgeSource.x}
+            y1={pendingEdgeSource.y}
+            x2={previewPoint.x}
+            y2={previewPoint.y}
+            className="stroke-blue-400 stroke-[3px] opacity-80"
+            strokeDasharray="10 8"
+            markerEnd="url(#edge-arrow)"
+          />
+        ) : null}
+      </g>
 
       {/* 再畫 Node (確保節點疊在線的上方) */}
       <g className="nodes">
         {nodes.map((node) => {
           const isSelected = selectedNodeId === node.id;
+          const isEdgeSource = pendingEdgeSourceId === node.id;
           return (
             <g
               key={node.id}
               transform={`translate(${node.x}, ${node.y})`}
-              className="cursor-pointer"
+              className={editorMode === 'ADD_EDGE' ? 'cursor-alias' : 'cursor-pointer'}
               // 將事件綁在 g 群組上，點擊圓圈或文字都能觸發
-              onMouseDown={(e) => handleNodeMouseDown(e, node)} 
+              onMouseDown={(e) => {
+                if (editorMode === 'SELECT') {
+                  handleNodeMouseDown(e, node);
+                }
+              }}
+              onClick={(e) => handleNodeClick(e, node)}
             >
               <circle
                 r="24"
                 className={`transition-colors duration-200 ${
-                  isSelected ? 'fill-blue-100 stroke-blue-500 stroke-[3px]' : 'fill-white stroke-slate-600 stroke-2'
+                  isEdgeSource
+                    ? 'fill-amber-100 stroke-amber-500 stroke-[4px]'
+                    : isSelected
+                      ? 'fill-blue-100 stroke-blue-500 stroke-[3px]'
+                      : 'fill-white stroke-slate-600 stroke-2'
                 }`}
               />
               <text
