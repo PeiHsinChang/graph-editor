@@ -145,6 +145,7 @@ export default function SvgCanvas({
   return (
     <svg
       ref={svgRef}
+      data-testid="svg-canvas"
       className={`w-full h-[600px] bg-white border-2 border-slate-200 rounded-xl shadow-sm ${
         editorMode === 'ADD_EDGE' ? 'cursor-alias' : 'cursor-crosshair'
       }`}
@@ -176,6 +177,7 @@ export default function SvgCanvas({
           return (
             <line
               key={edge.id}
+              data-testid={`edge-${edge.id}`}
               x1={sourceNode.x}
               y1={sourceNode.y}
               x2={targetNode.x}
@@ -188,6 +190,7 @@ export default function SvgCanvas({
 
         {pendingEdgeSource && previewPoint ? (
           <line
+            data-testid="preview-edge"
             x1={pendingEdgeSource.x}
             y1={pendingEdgeSource.y}
             x2={previewPoint.x}
@@ -207,6 +210,7 @@ export default function SvgCanvas({
           return (
             <g
               key={node.id}
+              data-testid={`node-${node.label}`}
               transform={`translate(${node.x}, ${node.y})`}
               className={editorMode === 'ADD_EDGE' ? 'cursor-alias' : 'cursor-pointer'}
               // 將事件綁在 g 群組上，點擊圓圈或文字都能觸發

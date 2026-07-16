@@ -118,6 +118,7 @@ export default function App() {
             <div className="flex rounded-xl border border-slate-200 bg-white p-1 shadow-sm">
               <button
                 onClick={() => handleModeChange('SELECT')}
+                data-testid="mode-select"
                 className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
                   editorMode === 'SELECT'
                     ? 'bg-slate-800 text-white'
@@ -128,6 +129,7 @@ export default function App() {
               </button>
               <button
                 onClick={() => handleModeChange('ADD_EDGE')}
+                data-testid="mode-add-edge"
                 className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
                   editorMode === 'ADD_EDGE'
                     ? 'bg-blue-600 text-white'
@@ -180,27 +182,27 @@ export default function App() {
             <div className="space-y-4">
               <div>
                 <p className="text-sm text-slate-400 font-medium">總節點數</p>
-                <p className="text-2xl font-bold">{nodes.length}</p>
+                <p data-testid="node-count" className="text-2xl font-bold">{nodes.length}</p>
               </div>
               <div>
                 <p className="text-sm text-slate-400 font-medium">總連線數</p>
-                <p className="text-2xl font-bold">{edges.length}</p>
+                <p data-testid="edge-count" className="text-2xl font-bold">{edges.length}</p>
               </div>
               <div>
                 <p className="text-sm text-slate-400 font-medium">目前模式</p>
-                <p className="text-sm font-mono bg-slate-100 p-2 rounded mt-1">
+                <p data-testid="current-mode" className="text-sm font-mono bg-slate-100 p-2 rounded mt-1">
                   {editorMode}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-slate-400 font-medium">選取的節點 ID</p>
-                <p className="text-sm font-mono bg-slate-100 p-2 rounded break-all mt-1">
+                <p data-testid="selected-node-id" className="text-sm font-mono bg-slate-100 p-2 rounded break-all mt-1">
                   {selectedNodeId || '無'}
                 </p>
               </div>
               <div>
                 <p className="text-sm text-slate-400 font-medium">連線起點</p>
-                <p className="text-sm font-mono bg-slate-100 p-2 rounded break-all mt-1">
+                <p data-testid="pending-edge-source" className="text-sm font-mono bg-slate-100 p-2 rounded break-all mt-1">
                   {pendingEdgeSourceId || '無'}
                 </p>
               </div>
