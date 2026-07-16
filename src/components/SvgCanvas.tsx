@@ -53,8 +53,8 @@ export default function SvgCanvas({
   // 【目標二：畫布座標轉換】
   const handleCanvasClick = (e: React.MouseEvent<SVGSVGElement>) => {
     if (editorMode === 'ADD_EDGE') {
-      onCancelEdgeDraft();
       if (e.target === svgRef.current) {
+        onCancelEdgeDraft();
         onSelectNode(null);
       }
       hasDraggedRef.current = false;
@@ -79,6 +79,18 @@ export default function SvgCanvas({
     e: React.MouseEvent<SVGGElement>,
     node: Node
   ) => {
+    if (editorMode === 'ADD_EDGE') {
+      e.stopPropagation();
+
+      if (!pendingEdgeSourceId) {
+        onStartEdge(node.id);
+        return;
+      }
+
+      onCompleteEdge(node.id);
+      return;
+    }
+
     // 關鍵！切斷事件冒泡，防止底層的 handleCanvasClick 被觸發
     e.stopPropagation(); 
 
@@ -92,24 +104,6 @@ export default function SvgCanvas({
     };
     hasDraggedRef.current = false;
     onSelectNode(node.id);
-  };
-
-  const handleNodeClick = (
-    e: React.MouseEvent<SVGGElement>,
-    node: Node
-  ) => {
-    e.stopPropagation();
-
-    if (editorMode !== 'ADD_EDGE') {
-      return;
-    }
-
-    if (!pendingEdgeSourceId) {
-      onStartEdge(node.id);
-      return;
-    }
-
-    onCompleteEdge(node.id);
   };
 
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
@@ -214,12 +208,7 @@ export default function SvgCanvas({
               transform={`translate(${node.x}, ${node.y})`}
               className={editorMode === 'ADD_EDGE' ? 'cursor-alias' : 'cursor-pointer'}
               // 將事件綁在 g 群組上，點擊圓圈或文字都能觸發
-              onMouseDown={(e) => {
-                if (editorMode === 'SELECT') {
-                  handleNodeMouseDown(e, node);
-                }
-              }}
-              onClick={(e) => handleNodeClick(e, node)}
+              onMouseDown={(e) => handleNodeMouseDown(e, node)}
             >
               <circle
                 r="24"
